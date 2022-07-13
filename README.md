@@ -1,3 +1,7 @@
+# BUILD THE IMAGE AT CERN
+
+cd helm-chart && chartpress --push --tag <YOURTAG> --image-prefix registry.cern.ch/binder/
+
 # [BinderHub](https://github.com/jupyterhub/binderhub)
 
 [![Documentation Status](https://img.shields.io/readthedocs/binderhub?logo=read-the-docs)](https://binderhub.readthedocs.io/en/latest/)

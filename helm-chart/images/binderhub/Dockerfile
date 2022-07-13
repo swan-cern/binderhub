@@ -5,18 +5,13 @@ ARG DIST=buster
 
 # The build stage
 # ---------------
-FROM python:3.8-$DIST as build-stage
+FROM gitlab-registry.cern.ch/linuxsupport/cs9-base:latest as build-stage
 # ARG DIST is defined again to be made available in this build stage's scope.
 # ref: https://docs.docker.com/engine/reference/builder/#understand-how-arg-and-from-interact
 ARG DIST
 
 # Install node as required to package binderhub to a wheel
-RUN echo "deb http://deb.nodesource.com/node_14.x $DIST main" > /etc/apt/sources.list.d/nodesource.list \
- && curl -s https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
-RUN apt-get update \
- && apt-get install --yes \
-        nodejs \
- && rm -rf /var/lib/apt/lists/*
+RUN dnf install -y nodejs python3-pip
 
 # Copy the whole git repository to /tmp/binderhub
 COPY . /tmp/binderhub
@@ -27,31 +22,24 @@ WORKDIR /tmp/binderhub
 # the build stage.
 RUN python -mpip install build && python -mbuild --wheel .
 RUN pip wheel --wheel-dir ./dist \
-       pycurl \
        ruamel.yaml.clib
 
 # We download tini from here were we have wget available.
-RUN ARCH=$(uname -m); \
-    if [ "$ARCH" = x86_64 ]; then ARCH=amd64; fi; \
-    if [ "$ARCH" = aarch64 ]; then ARCH=arm64; fi; \
-    wget -qO /tini "https://github.com/krallin/tini/releases/download/v0.19.0/tini-$ARCH" \
- && chmod +x /tini
 
 # The final stage
 # ---------------
-FROM python:3.8-slim-$DIST
+FROM gitlab-registry.cern.ch/linuxsupport/cs9-base:latest
 WORKDIR /
+
+# The slim version doesn't include git as required by binderhub
+RUN yum install -y git curl python3-pycurl python3-pip && yum clean all
 
 # We use tini as an entrypoint to not loose track of SIGTERM signals as sent
 # before SIGKILL when "docker stop" or "kubectl delete pod" is run. By doing
 # that the pod can terminate very quickly.
-COPY --from=build-stage /tini /tini
  
-# The slim version doesn't include git as required by binderhub
-RUN apt-get update \
- && apt-get install --yes \
-        git \
- && rm -rf /var/lib/apt/lists/*
+RUN curl  -L --output /tini "https://github.com/krallin/tini/releases/download/v0.19.0/tini-amd64" \
+ && chmod +x /tini
 
 # Copy the built wheels from the build-stage. Also copy the image
 # requirements.txt built from the binderhub package requirements.txt and the
